@@ -180,13 +180,21 @@ async def upload_html(request: Request, admin_key: str | None = None):
 async def upload_post(request: Request, text: str = Form(...), admin_key: str | None = Form(None)):
     _verify_token_admin(request, admin_key)
     lines = text.split("\n")
-    for line in lines:
-        if line.strip() and not line.startswith("#"):
-            globals.token_list.append(line.strip())
-            with open(globals.TOKENS_FILE, "a", encoding="utf-8") as f:
-                f.write(line.strip() + "\n")
+    valid_tokens = [line.strip() for line in lines if line.strip() and not line.strip().startswith("#")]
+    if not valid_tokens:
+        raise HTTPException(status_code=400, detail="No valid tokens found in request.")
+
+    existing_tokens = set(globals.token_list)
+    new_tokens = [token for token in valid_tokens if token not in existing_tokens]
+
+    if new_tokens:
+        globals.token_list.extend(new_tokens)
+        with open(globals.TOKENS_FILE, "a", encoding="utf-8") as f:
+            for token in new_tokens:
+                f.write(token + "\n")
+
     logger.info(f"Token count: {len(globals.token_list)}, Error token count: {len(globals.error_token_list)}")
-    return {"status": "success", "tokens_count": _get_tokens_count()}
+    return {"status": "success", "tokens_count": _get_tokens_count(), "added_count": len(new_tokens)}
 
 
 @app.post(f"/{api_prefix}/tokens/clear" if api_prefix else "/tokens/clear")
@@ -210,10 +218,11 @@ async def error_tokens(request: Request, admin_key: str | None = Form(None)):
 @app.get(f"/{api_prefix}/tokens/add/{{token}}" if api_prefix else "/tokens/add/{token}")
 async def add_token(token: str, request: Request, admin_key: str | None = None):
     _verify_token_admin(request, admin_key)
-    if token.strip() and not token.startswith("#"):
-        globals.token_list.append(token.strip())
+    token = token.strip()
+    if token and not token.startswith("#") and token not in set(globals.token_list):
+        globals.token_list.append(token)
         with open(globals.TOKENS_FILE, "a", encoding="utf-8") as f:
-            f.write(token.strip() + "\n")
+            f.write(token + "\n")
     logger.info(f"Token count: {len(globals.token_list)}, Error token count: {len(globals.error_token_list)}")
     return {"status": "success", "tokens_count": _get_tokens_count()}
 
