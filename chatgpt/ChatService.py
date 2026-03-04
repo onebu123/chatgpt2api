@@ -169,6 +169,9 @@ class ChatService:
             self.req_model = "gpt-4o"
         elif "gpt-4-mobile" in self.origin_model:
             self.req_model = "gpt-4-mobile"
+        elif self.origin_model.startswith("gpt-5"):
+            # gpt-5 系列保持原样透传，避免被降级到 gpt-4o
+            self.req_model = self.origin_model
         elif "gpt-4" in self.origin_model:
             self.req_model = "gpt-4"
         elif "gpt-3.5" in self.origin_model:
