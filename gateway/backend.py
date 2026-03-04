@@ -22,6 +22,7 @@ from utils.Client import Client
 from utils.Logger import logger
 from utils.configs import x_sign, turnstile_solver_url, chatgpt_base_url_list, no_sentinel, sentinel_proxy_url_list, \
     force_no_history
+from utils.sensitive import mask_proxy_url, mask_token
 
 banned_paths = [
     "backend-api/accounts/logout_all",
@@ -98,7 +99,7 @@ async def get_gizmos_discovery_recent(request: Request):
 @app.get("/backend-api/gizmos/snorlax/sidebar")
 async def get_gizmos_snorlax_sidebar(request: Request):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if len(token) == 45 or token.startswith:
+    if len(token) == 45 or token.startswith("eyJhbGciOi"):
         return await chatgpt_reverse_proxy(request, "backend-api/gizmos/snorlax/sidebar")
     else:
         return {"items": [], "cursor": None}
@@ -107,7 +108,7 @@ async def get_gizmos_snorlax_sidebar(request: Request):
 @app.post("/backend-api/gizmos/snorlax/upsert")
 async def get_gizmos_snorlax_upsert(request: Request):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if len(token) == 45 or token.startswith:
+    if len(token) == 45 or token.startswith("eyJhbGciOi"):
         return await chatgpt_reverse_proxy(request, "backend-api/gizmos/snorlax/upsert")
     else:
         raise HTTPException(status_code=403, detail="Forbidden")
@@ -653,8 +654,8 @@ if no_sentinel:
         r = await client.post_stream(f"{host_url}{request.url.path}", params=params, headers=headers,
                                      cookies=request_cookies, data=data, stream=True, allow_redirects=False)
         rheaders = r.headers
-        logger.info(f"Request token: {req_token}")
-        logger.info(f"Request proxy: {proxy_url}")
+        logger.info(f"Request token: {mask_token(req_token)}")
+        logger.info(f"Request proxy: {mask_proxy_url(proxy_url)}")
         logger.info(f"Request UA: {user_agent}")
         logger.info(f"Request impersonate: {impersonate}")
         if x_sign:

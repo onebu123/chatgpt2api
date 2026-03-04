@@ -12,6 +12,7 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - AUTHORIZATION=sk-xxx
+      - ADMIN_API_KEY=change-me
 
   watchtower:
     image: containrrr/watchtower

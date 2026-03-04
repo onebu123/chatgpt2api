@@ -11,17 +11,21 @@ from utils.configs import enable_gateway, api_prefix
 warnings.filterwarnings("ignore")
 
 
+api_prefix_path = ""
+if isinstance(api_prefix, str) and api_prefix.strip():
+    api_prefix_path = api_prefix.strip("/")
+
+docs_url = f"/{api_prefix_path}/docs" if api_prefix_path else "/docs"
+redoc_url = f"/{api_prefix_path}/redoc" if api_prefix_path else "/redoc"
+openapi_url = f"/{api_prefix_path}/openapi.json" if api_prefix_path else "/openapi.json"
+
 log_config = uvicorn.config.LOGGING_CONFIG
 default_format = "%(asctime)s | %(levelname)s | %(message)s"
 access_format = r'%(asctime)s | %(levelname)s | %(client_addr)s: %(request_line)s %(status_code)s'
 log_config["formatters"]["default"]["fmt"] = default_format
 log_config["formatters"]["access"]["fmt"] = access_format
 
-app = FastAPI(
-    docs_url=f"/{api_prefix}/docs",    # 设置 Swagger UI 文档路径
-    redoc_url=f"/{api_prefix}/redoc",  # 设置 Redoc 文档路径
-    openapi_url=f"/{api_prefix}/openapi.json"  # 设置 OpenAPI JSON 路径
-)
+app = FastAPI(docs_url=docs_url, redoc_url=redoc_url, openapi_url=openapi_url)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,3 +59,4 @@ else:
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=5005)
     # uvicorn.run("app:app", host="0.0.0.0", port=5005, ssl_keyfile="key.pem", ssl_certfile="cert.pem")
+

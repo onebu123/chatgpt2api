@@ -1,18 +1,21 @@
 import asyncio
+import json
+import time
 import types
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import Request, HTTPException, Form, Security
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi import Form, HTTPException, Request, Security
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials
 from starlette.background import BackgroundTask
 
 import utils.globals as globals
-from app import app, templates, security_scheme
+from api.models import model_proxy
+from app import app, security_scheme, templates
 from chatgpt.ChatService import ChatService
 from chatgpt.authorization import refresh_all_tokens
 from utils.Logger import logger
-from utils.configs import api_prefix, scheduled_refresh
+from utils.configs import admin_api_key, api_prefix, authorization_list, scheduled_refresh
 from utils.retry import async_retry
 
 scheduler = AsyncIOScheduler()
@@ -21,8 +24,15 @@ scheduler = AsyncIOScheduler()
 @app.on_event("startup")
 async def app_start():
     if scheduled_refresh:
-        scheduler.add_job(id='refresh', func=refresh_all_tokens, trigger='cron', hour=3, minute=0, day='*/2',
-                          kwargs={'force_refresh': True})
+        scheduler.add_job(
+            id="refresh",
+            func=refresh_all_tokens,
+            trigger="cron",
+            hour=3,
+            minute=0,
+            day="*/2",
+            kwargs={"force_refresh": True},
+        )
         scheduler.start()
         asyncio.get_event_loop().call_later(0, lambda: asyncio.create_task(refresh_all_tokens(force_refresh=False)))
 
@@ -49,6 +59,75 @@ async def process(request_data, req_token):
     return chat_service, res
 
 
+def _extract_bearer_token(request: Request):
+    auth_header = request.headers.get("authorization", "")
+    if not auth_header:
+        return ""
+    auth_parts = auth_header.split(" ", 1)
+    if len(auth_parts) != 2:
+        return ""
+    if auth_parts[0].lower() != "bearer":
+        return ""
+    return auth_parts[1].strip()
+
+
+def _verify_token_admin(request: Request, form_admin_key: str | None = None):
+    bearer_token = _extract_bearer_token(request)
+    header_admin_key = request.headers.get("x-admin-key", "").strip()
+    query_admin_key = request.query_params.get("admin_key", "").strip()
+    form_admin_key = (form_admin_key or "").strip()
+
+    provided_candidates = [header_admin_key, query_admin_key, form_admin_key, bearer_token]
+    provided_key = next((item for item in provided_candidates if item), "")
+
+    if admin_api_key:
+        if provided_key == admin_api_key:
+            return
+        raise HTTPException(status_code=401, detail="Unauthorized admin request")
+
+    if authorization_list:
+        if provided_key in authorization_list:
+            return
+        raise HTTPException(status_code=401, detail="Unauthorized admin request")
+
+    raise HTTPException(
+        status_code=403,
+        detail="Token management is disabled. Set ADMIN_API_KEY or AUTHORIZATION.",
+    )
+
+
+def _get_tokens_count():
+    return len(set(globals.token_list) - set(globals.error_token_list))
+
+
+def _build_models_payload():
+    # 返回一组稳定的 OpenAI 风格模型列表，避免客户端探测 /v1/models 失败。
+    extra_models = {
+        "auto",
+        "text-davinci-002-render-sha",
+        "gpt-4o-canmore",
+        "gpt-4-mobile",
+        "gpt-4.5o",
+        "o1-pro",
+        "o3-mini-medium",
+        "o3-mini-low",
+    }
+    model_ids = sorted(set(model_proxy.keys()) | set(model_proxy.values()) | extra_models)
+    now = int(time.time())
+    return {
+        "object": "list",
+        "data": [
+            {
+                "id": model_id,
+                "object": "model",
+                "created": now,
+                "owned_by": "openai",
+            }
+            for model_id in model_ids
+        ],
+    }
+
+
 @app.post(f"/{api_prefix}/v1/chat/completions" if api_prefix else "/v1/chat/completions")
 async def send_conversation(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
     req_token = credentials.credentials
@@ -61,9 +140,8 @@ async def send_conversation(request: Request, credentials: HTTPAuthorizationCred
         if isinstance(res, types.AsyncGeneratorType):
             background = BackgroundTask(chat_service.close_client)
             return StreamingResponse(res, media_type="text/event-stream", background=background)
-        else:
-            background = BackgroundTask(chat_service.close_client)
-            return JSONResponse(res, media_type="application/json", background=background)
+        background = BackgroundTask(chat_service.close_client)
+        return JSONResponse(res, media_type="application/json", background=background)
     except HTTPException as e:
         await chat_service.close_client()
         if e.status_code == 500:
@@ -76,15 +154,31 @@ async def send_conversation(request: Request, credentials: HTTPAuthorizationCred
         raise HTTPException(status_code=500, detail="Server error")
 
 
+@app.get(f"/{api_prefix}/v1/models" if api_prefix else "/v1/models")
+async def list_models(credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
+    if not credentials.credentials:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
+    return _build_models_payload()
+
+
 @app.get(f"/{api_prefix}/tokens" if api_prefix else "/tokens", response_class=HTMLResponse)
-async def upload_html(request: Request):
-    tokens_count = len(set(globals.token_list) - set(globals.error_token_list))
-    return templates.TemplateResponse("tokens.html",
-                                      {"request": request, "api_prefix": api_prefix, "tokens_count": tokens_count})
+async def upload_html(request: Request, admin_key: str | None = None):
+    _verify_token_admin(request, admin_key)
+    return templates.TemplateResponse(
+        "tokens.html",
+        {
+            "request": request,
+            "api_prefix": api_prefix,
+            "tokens_count": _get_tokens_count(),
+            "token_admin_enabled": bool(admin_api_key),
+            "admin_key": admin_key or "",
+        },
+    )
 
 
 @app.post(f"/{api_prefix}/tokens/upload" if api_prefix else "/tokens/upload")
-async def upload_post(text: str = Form(...)):
+async def upload_post(request: Request, text: str = Form(...), admin_key: str | None = Form(None)):
+    _verify_token_admin(request, admin_key)
     lines = text.split("\n")
     for line in lines:
         if line.strip() and not line.startswith("#"):
@@ -92,40 +186,41 @@ async def upload_post(text: str = Form(...)):
             with open(globals.TOKENS_FILE, "a", encoding="utf-8") as f:
                 f.write(line.strip() + "\n")
     logger.info(f"Token count: {len(globals.token_list)}, Error token count: {len(globals.error_token_list)}")
-    tokens_count = len(set(globals.token_list) - set(globals.error_token_list))
-    return {"status": "success", "tokens_count": tokens_count}
+    return {"status": "success", "tokens_count": _get_tokens_count()}
 
 
 @app.post(f"/{api_prefix}/tokens/clear" if api_prefix else "/tokens/clear")
-async def clear_tokens():
+async def clear_tokens(request: Request, admin_key: str | None = Form(None)):
+    _verify_token_admin(request, admin_key)
     globals.token_list.clear()
     globals.error_token_list.clear()
     with open(globals.TOKENS_FILE, "w", encoding="utf-8") as f:
-        pass
+        f.write("")
     logger.info(f"Token count: {len(globals.token_list)}, Error token count: {len(globals.error_token_list)}")
-    tokens_count = len(set(globals.token_list) - set(globals.error_token_list))
-    return {"status": "success", "tokens_count": tokens_count}
+    return {"status": "success", "tokens_count": _get_tokens_count()}
 
 
 @app.post(f"/{api_prefix}/tokens/error" if api_prefix else "/tokens/error")
-async def error_tokens():
+async def error_tokens(request: Request, admin_key: str | None = Form(None)):
+    _verify_token_admin(request, admin_key)
     error_tokens_list = list(set(globals.error_token_list))
     return {"status": "success", "error_tokens": error_tokens_list}
 
 
 @app.get(f"/{api_prefix}/tokens/add/{{token}}" if api_prefix else "/tokens/add/{token}")
-async def add_token(token: str):
+async def add_token(token: str, request: Request, admin_key: str | None = None):
+    _verify_token_admin(request, admin_key)
     if token.strip() and not token.startswith("#"):
         globals.token_list.append(token.strip())
         with open(globals.TOKENS_FILE, "a", encoding="utf-8") as f:
             f.write(token.strip() + "\n")
     logger.info(f"Token count: {len(globals.token_list)}, Error token count: {len(globals.error_token_list)}")
-    tokens_count = len(set(globals.token_list) - set(globals.error_token_list))
-    return {"status": "success", "tokens_count": tokens_count}
+    return {"status": "success", "tokens_count": _get_tokens_count()}
 
 
 @app.post(f"/{api_prefix}/seed_tokens/clear" if api_prefix else "/seed_tokens/clear")
-async def clear_seed_tokens():
+async def clear_seed_tokens(request: Request, admin_key: str | None = Form(None)):
+    _verify_token_admin(request, admin_key)
     globals.seed_map.clear()
     globals.conversation_map.clear()
     with open(globals.SEED_MAP_FILE, "w", encoding="utf-8") as f:

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from utils.Client import Client
 from utils.Logger import logger
 from utils.configs import proxy_url_list
+from utils.sensitive import mask_token
 import utils.globals as globals
 
 
@@ -22,7 +23,7 @@ async def rt2ac(refresh_token, force_refresh=False):
             globals.refresh_map[refresh_token] = {"token": access_token, "timestamp": int(time.time())}
             with open(globals.REFRESH_MAP_FILE, "w") as f:
                 json.dump(globals.refresh_map, f, indent=4)
-            logger.info(f"refresh_token -> access_token with openai: {access_token}")
+            logger.info("refresh_token -> access_token with openai: success")
             return access_token
         except HTTPException as e:
             raise HTTPException(status_code=e.status_code, detail=e.detail)
@@ -53,7 +54,7 @@ async def chat_refresh(refresh_token):
             else:
                 raise Exception(r.text[:300])
     except Exception as e:
-        logger.error(f"Failed to refresh access_token `{refresh_token}`: {str(e)}")
+        logger.error(f"Failed to refresh access_token `{mask_token(refresh_token)}`: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to refresh access_token.")
     finally:
         await client.close()

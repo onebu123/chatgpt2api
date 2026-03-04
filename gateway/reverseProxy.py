@@ -14,6 +14,7 @@ from chatgpt.fp import get_fp
 from utils.Client import Client
 from utils.Logger import logger
 from utils.configs import chatgpt_base_url_list, sentinel_proxy_url_list, force_no_history, file_host, voice_host
+from utils.sensitive import mask_proxy_url, mask_token
 
 
 def generate_current_time():
@@ -269,8 +270,8 @@ async def chatgpt_reverse_proxy(request: Request, path: str):
                                 .replace("cdn.oaistatic.com", origin_host)
                                 .replace("https", petrol)}, background=background)
             elif 'stream' in r.headers.get("content-type", ""):
-                logger.info(f"Request token: {req_token}")
-                logger.info(f"Request proxy: {proxy_url}")
+                logger.info(f"Request token: {mask_token(req_token)}")
+                logger.info(f"Request proxy: {mask_proxy_url(proxy_url)}")
                 logger.info(f"Request UA: {user_agent}")
                 logger.info(f"Request impersonate: {impersonate}")
                 conv_key = r.cookies.get("conv_key", "")

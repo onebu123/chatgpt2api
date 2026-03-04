@@ -4,6 +4,7 @@ import os
 from dotenv import load_dotenv
 
 from utils.Logger import logger
+from utils.sensitive import mask_proxy_url, mask_secret, mask_token_list
 
 load_dotenv(encoding="ascii")
 
@@ -23,6 +24,7 @@ api_prefix = os.getenv('API_PREFIX', None)
 authorization = os.getenv('AUTHORIZATION', '').replace(' ', '')
 chatgpt_base_url = os.getenv('CHATGPT_BASE_URL', 'https://chatgpt.com').replace(' ', '')
 auth_key = os.getenv('AUTH_KEY', None)
+admin_api_key = os.getenv('ADMIN_API_KEY', None)
 x_sign = os.getenv('X_SIGN', None)
 
 ark0se_token_url = os.getenv('ARK' + 'OSE_TOKEN_URL', '').replace(' ', '')
@@ -78,12 +80,13 @@ logger.info("-" * 60)
 logger.info("Environment variables:")
 logger.info("------------------------- Security -------------------------")
 logger.info("API_PREFIX:        " + str(api_prefix))
-logger.info("AUTHORIZATION:     " + str(authorization_list))
-logger.info("AUTH_KEY:          " + str(auth_key))
+logger.info("AUTHORIZATION:     " + str(mask_token_list(authorization_list)))
+logger.info("ADMIN_API_KEY:     " + str(mask_secret(admin_api_key, prefix=2, suffix=2)))
+logger.info("AUTH_KEY:          " + str(mask_secret(auth_key, prefix=2, suffix=2)))
 logger.info("------------------------- Request --------------------------")
 logger.info("CHATGPT_BASE_URL:  " + str(chatgpt_base_url_list))
-logger.info("PROXY_URL:         " + str(proxy_url_list))
-logger.info("EXPORT_PROXY_URL:  " + str(export_proxy_url))
+logger.info("PROXY_URL:         " + str(mask_proxy_url(proxy_url_list)))
+logger.info("EXPORT_PROXY_URL:  " + str(mask_proxy_url(export_proxy_url)))
 logger.info("FILE_HOST:     " + str(file_host))
 logger.info("VOICE_HOST:    " + str(voice_host))
 logger.info("IMPERSONATE:       " + str(impersonate_list))

@@ -7,32 +7,54 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const apiPrefix = "{{ api_prefix }}";
+            const apiPrefixRaw = "{{ api_prefix }}";
+            const basePath = (!apiPrefixRaw || apiPrefixRaw === "None") ? "" : `/${apiPrefixRaw}`;
             const uploadForm = document.getElementById('uploadForm');
             const clearForm = document.getElementById('clearForm');
             const errorButton = document.getElementById('errorButton');
+            const adminKeyInput = document.getElementById('adminKeyInput');
 
-            if (apiPrefix === "None") {
-                uploadForm.action = "/tokens/upload";
-                clearForm.action = "/tokens/clear";
-                errorButton.dataset.api = "/tokens/error";
-            } else {
-                uploadForm.action = `/${apiPrefix}/tokens/upload`;
-                clearForm.action = `/${apiPrefix}/tokens/clear`;
-                errorButton.dataset.api = `/${apiPrefix}/tokens/error`;
+            function withAdminKey(path) {
+                const adminKey = adminKeyInput.value.trim();
+                const url = `${basePath}${path}`;
+                if (!adminKey) {
+                    return url;
+                }
+                const sep = url.includes('?') ? '&' : '?';
+                return `${url}${sep}admin_key=${encodeURIComponent(adminKey)}`;
             }
 
+            uploadForm.addEventListener('submit', () => {
+                uploadForm.action = withAdminKey('/tokens/upload');
+            });
+
+            clearForm.addEventListener('submit', () => {
+                clearForm.action = withAdminKey('/tokens/clear');
+            });
+
             errorButton.addEventListener('click', async () => {
-                const response = await fetch(errorButton.dataset.api, {
+                const formData = new FormData();
+                formData.append('admin_key', adminKeyInput.value.trim());
+
+                const response = await fetch(withAdminKey('/tokens/error'), {
                     method: 'POST',
+                    body: formData,
                 });
                 const result = await response.json();
-                const errorTokens = result.error_tokens;
+                if (!response.ok) {
+                    alert(result.detail || '请求失败，请检查管理员密钥');
+                    return;
+                }
+                const errorTokens = result.error_tokens || [];
 
                 const errorModal = document.getElementById('errorModal');
                 const errorModalContent = document.getElementById('errorModalContent');
 
-                errorModalContent.innerHTML = errorTokens.map(token => `<p>${token}</p>`).join('');
+                if (errorTokens.length === 0) {
+                    errorModalContent.innerHTML = '<p class="text-gray-500">暂无错误 Token</p>';
+                } else {
+                    errorModalContent.innerHTML = errorTokens.map(token => `<p>${token}</p>`).join('');
+                }
                 errorModal.classList.remove('hidden');
             });
 
@@ -45,38 +67,74 @@
                 const textToCopy = errorModalContent.innerText.replace(/\n\n/g, '\n');
                 navigator.clipboard.writeText(textToCopy).then(() => {
                     alert('错误 Tokens 已复制到剪贴板');
-                }).catch(err => {
+                }).catch(() => {
                     alert('复制失败，请手动复制');
                 });
             });
         });
     </script>
 </head>
-<body class="bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200 flex justify-center items-center min-h-screen">
-    <div class="bg-white p-10 rounded-lg shadow-2xl w-128 text-center">
-        <h1 class="text-4xl font-extrabold text-gray-900 mb-6">Tokens 管理</h1>
-        <p class="text-gray-600 mb-4">当前可用 Tokens 数量：<span class="text-blue-600">{{ tokens_count }}</span></p>
+<body class="bg-gradient-to-r from-blue-200 via-indigo-200 to-cyan-200 flex justify-center items-center min-h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-2xl w-full max-w-3xl text-center">
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">Tokens 管理</h1>
+        <p class="text-gray-600 mb-4">当前可用 Tokens 数量：<span class="text-blue-600 font-semibold">{{ tokens_count }}</span></p>
+
+        <div class="mb-4 text-left">
+            <label for="adminKeyInput" class="block text-sm font-medium text-gray-700 mb-1">管理员密钥（ADMIN_API_KEY 或 AUTHORIZATION）</label>
+            <input
+                id="adminKeyInput"
+                type="password"
+                value="{{ admin_key }}"
+                placeholder="请输入管理员密钥"
+                class="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+            <p class="text-xs text-gray-500 mt-1">提示：打开页面可使用 `?admin_key=你的密钥`。</p>
+        </div>
+
         <form class="mb-2" id="uploadForm" method="post">
-            <textarea class="w-full p-4 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none" name="text" placeholder="一行一个Token，可以是 AccessToken 或 RefreshToken" rows="10"></textarea>
-            <p class="text-gray-600 mb-2">注：使用docker时如果挂载了data文件夹则重启后不需要再次上传</p>
+            <input type="hidden" name="admin_key" id="adminKeyHiddenUpload" value="" />
+            <textarea
+                class="w-full p-4 mb-4 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                name="text"
+                placeholder="一行一个 Token，可以是 AccessToken 或 RefreshToken"
+                rows="10"
+            ></textarea>
             <button class="w-full bg-blue-600 text-white py-3 rounded-md hover:bg-blue-700 transition duration-300 mb-2" type="submit">上传</button>
         </form>
-        <button id="errorButton" class="w-full bg-yellow-600 text-white py-3 rounded-md hover:bg-yellow-700 transition duration-200 mt-2">查看错误Tokens</button>
-        <p class="text-gray-600 mt-2">点击清空，将会清空上传和错误的 Tokens</p>
-        <form id="clearForm" method="post">
-            <button class="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition duration-300" type="submit">清空Tokens</button>
+
+        <button id="errorButton" class="w-full bg-yellow-600 text-white py-3 rounded-md hover:bg-yellow-700 transition duration-200 mt-2">查看错误 Tokens</button>
+        <p class="text-gray-600 mt-2">点击清空将删除已上传与错误 Tokens</p>
+
+        <form id="clearForm" method="post" class="mt-2">
+            <input type="hidden" name="admin_key" id="adminKeyHiddenClear" value="" />
+            <button class="w-full bg-red-600 text-white py-3 rounded-md hover:bg-red-700 transition duration-300" type="submit">清空 Tokens</button>
         </form>
     </div>
-    
+
     <div id="errorModal" class="fixed inset-0 bg-gray-800 bg-opacity-75 flex justify-center items-center hidden">
-        <div class="bg-white p-6 rounded-lg shadow-lg w-150">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-2xl">
             <h2 class="text-2xl font-bold mb-4">错误 Tokens</h2>
-            <div id="errorModalContent" class="list-disc list-inside text-left mb-4"></div>
+            <div id="errorModalContent" class="list-disc list-inside text-left mb-4 max-h-72 overflow-auto"></div>
             <div class="flex justify-end space-x-4">
                 <button id="errorModalCopy" class="bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition duration-300">复制</button>
                 <button id="errorModalClose" class="bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 transition duration-300">关闭</button>
             </div>
         </div>
     </div>
+
+    <script>
+        const adminKeyInput = document.getElementById('adminKeyInput');
+        const adminKeyHiddenUpload = document.getElementById('adminKeyHiddenUpload');
+        const adminKeyHiddenClear = document.getElementById('adminKeyHiddenClear');
+
+        function syncAdminKey() {
+            const key = adminKeyInput.value.trim();
+            adminKeyHiddenUpload.value = key;
+            adminKeyHiddenClear.value = key;
+        }
+
+        adminKeyInput.addEventListener('input', syncAdminKey);
+        syncAdminKey();
+    </script>
 </body>
 </html>
