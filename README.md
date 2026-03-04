@@ -1,164 +1,182 @@
 # CHAT2API
 
-🤖 一个简单的 ChatGPT TO API 代理
+🤖 一个将 ChatGPT Web 能力转换为 OpenAI 兼容 API 的代理服务（现用增强版）
 
-🌟 无需账号即可使用免费、无限的 `GPT-3.5`
+🌟 支持免登录 `GPT-3.5`（受 IP/地区策略影响）
 
-💥 支持 AccessToken 使用账号，支持 `O3-mini/high`、`O1/mini/Pro`、`GPT-4/4o/mini`、`GPTs`
+💥 支持 `AccessToken` / `RefreshToken`，支持 `GPT-4/4o/mini`、`GPT-5*`、`O1/O3`、`GPTs`
 
-🔍 回复格式与真实 API 完全一致，适配几乎所有客户端
+🔍 `/v1/models` 支持实时拉取上游模型列表，失败自动回退静态列表
 
-👮 配套用户管理端[Chat-Share](https://github.com/h88782481/Chat-Share)使用前需提前配置好环境变量（ENABLE_GATEWAY设置为True，AUTO_SEED设置为False）
+🖼️ 新增 `/v1/images/generations` 兼容端点（OpenAI 子集）
+
+👮 Tokens 管理接口已增加 `ADMIN_API_KEY` 校验，默认更安全
 
 
 ## 交流群
 
 [https://t.me/chat2api](https://t.me/chat2api)
 
-要提问请先阅读完仓库文档，尤其是常见问题部分。
+提问前请先阅读文档，尤其是常见问题。
 
-提问时请提供：
+建议提问时附上：
 
-1. 启动日志截图（敏感信息打码，包括环境变量和版本号）
-2. 报错的日志信息（敏感信息打码）
-3. 接口返回的状态码和响应体
+1. 启动日志截图（敏感信息打码）
+2. 报错日志（敏感信息打码）
+3. 请求路径、状态码和响应体
+
 
 ## 功能
 
 ### 最新版本号存于 `version.txt`
 
-### 逆向API 功能
+### 逆向 API 功能
 > - [x] 流式、非流式传输
-> - [x] 免登录 GPT-3.5 对话
-> - [x] GPT-3.5 模型对话（传入模型名不包含 gpt-4，则默认使用 gpt-3.5，也就是 text-davinci-002-render-sha）
-> - [x] GPT-4 系列模型对话（传入模型名包含: gpt-4，gpt-4o，gpt-4o-mini，gpt-4-moblie 即可使用对应模型，需传入 AccessToken）
-> - [x] O1 系列模型对话（传入模型名包含 o1-preview，o1-mini 即可使用对应模型，需传入 AccessToken）
-> - [x] GPT-4 模型画图、代码、联网
-> - [x] 支持 GPTs（传入模型名：gpt-4-gizmo-g-*）
-> - [x] 支持 Team Plus 账号（需传入 team account id）
-> - [x] 上传图片、文件（格式为 API 对应格式，支持 URL 和 base64）
-> - [x] 可作为网关使用，可多机分布部署
-> - [x] 多账号轮询，同时支持 `AccessToken` 和 `RefreshToken`
-> - [x] 请求失败重试，自动轮询下一个 Token
-> - [x] Tokens 管理，支持上传、清除
-> - [x] 定时使用 `RefreshToken` 刷新 `AccessToken` / 每次启动将会全部非强制刷新一次，每4天晚上3点全部强制刷新一次。
-> - [x] 支持文件下载，需要开启历史记录
-> - [x] 支持 `O3-mini/high`、`O1/mini/Pro` 等模型推理过程输出
+> - [x] 免登录 `GPT-3.5` 对话
+> - [x] `GPT-4/4o/mini`、`O1/O3`、`GPTs` 对话
+> - [x] `GPT-5*` 模型直通（不再被降级为 `gpt-4o`）
+> - [x] 上传图片、文件（支持 URL 和 base64）
+> - [x] `/v1/models` 实时拉取上游模型 + 60 秒缓存 + 静态回退
+> - [x] `/v1/images/generations`（兼容子集：`model/prompt/n/response_format=url`）
+> - [x] 多账号轮询，支持 `AccessToken` 与 `RefreshToken`
+> - [x] Tokens 管理（上传、清除、查看异常 token）
+> - [x] 非重试类 4xx（400/401/403/404/422）直接返回，减少无效重试
 
-### 官网镜像 功能
+### 官网镜像功能
 > - [x] 支持官网原生镜像
-> - [x] 后台账号池随机抽取，`Seed` 设置随机账号
-> - [x] 输入 `RefreshToken` 或 `AccessToken` 直接登录使用
-> - [x] 支持 `O3-mini/high`、`O1/mini/Pro`、`GPT-4/4o/mini`
-> - [x] 敏感信息接口禁用、部分设置接口禁用
-> - [x] /login 登录页面，注销后自动跳转到登录页面
-> - [x] /?token=xxx 直接登录, xxx 为 `RefreshToken` 或 `AccessToken` 或 `SeedToken` (随机种子)
-> - [x] 支持不同 SeedToken 会话隔离
-> - [x] 支持 `GPTs` 商店
-> - [x] 支持 `DeepReaserch`、`Canvas` 等官网独有功能
-> - [x] 支持切换各国语言
-
+> - [x] 后台账号池随机抽取，`Seed` 可绑定会话
+> - [x] 支持 `RefreshToken` 或 `AccessToken` 登录
+> - [x] 支持 `GPTs` 商店与官网多语言切换
+> - [x] 可通过 `ENABLE_GATEWAY=true` 启用镜像模式
 
 > TODO
-> - [ ] 暂无，欢迎提 `issue`
+> - [ ] 欢迎提 issue
 
-## 逆向API
 
-完全 `OpenAI` 格式的 API ，支持传入 `AccessToken` 或 `RefreshToken`，可用 GPT-4, GPT-4o, GPT-4o-Mini, GPTs, O1-Pro, O1, O1-Mini, O3-Mini, O3-Mini-High：
+## 本仓库现用版本改动
+
+1. 模型列表：`GET /v1/models` 改为优先实时查询上游 `backend-api/models`，失败自动回退静态模型，兼容探测型客户端。
+2. 模型映射：`gpt-5*` 系列模型保持透传，避免误降级。
+3. 图片生成：新增 `POST /v1/images/generations`，兼容 OpenAI 请求/响应格式（子集）。
+4. 稳定性：对非重试类 4xx 错误直接返回，避免重复请求放大故障。
+5. 安全性：Tokens 管理接口新增 `ADMIN_API_KEY` 校验逻辑，降低误暴露风险。
+
+
+## 逆向 API
+
+完全 `OpenAI` 风格的接口，支持传入 `AccessToken` 或 `RefreshToken`。
+
+### 1) 对话接口
 
 ```bash
 curl --location 'http://127.0.0.1:5005/v1/chat/completions' \
 --header 'Content-Type: application/json' \
 --header 'Authorization: Bearer {{Token}}' \
 --data '{
-     "model": "gpt-3.5-turbo",
-     "messages": [{"role": "user", "content": "Say this is a test!"}],
-     "stream": true
-   }'
+  "model": "gpt-5-mini",
+  "messages": [{"role":"user","content":"Say this is a test!"}],
+  "stream": true
+}'
 ```
 
-将你账号的 `AccessToken` 或 `RefreshToken` 作为 `{{ Token }}` 传入。
-也可填写你设置的环境变量 `Authorization` 的值, 将会随机选择后台账号
+### 2) 模型列表接口
 
-如果有team账号，可以传入 `ChatGPT-Account-ID`，使用 Team 工作区：
+```bash
+curl --location 'http://127.0.0.1:5005/v1/models' \
+--header 'Authorization: Bearer {{Token}}'
+```
 
-- 传入方式一：
-`headers` 中传入 `ChatGPT-Account-ID`值
+### 3) 图片生成接口（兼容子集）
 
-- 传入方式二：
-`Authorization: Bearer <AccessToken 或 RefreshToken>,<ChatGPT-Account-ID>`
+```bash
+curl --location 'http://127.0.0.1:5005/v1/images/generations' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{Token}}' \
+--data '{
+  "model": "gpt-5-3",
+  "prompt": "a cyberpunk corgi riding a motorcycle at sunset",
+  "n": 1,
+  "response_format": "url"
+}'
+```
 
-如果设置了 `AUTHORIZATION` 环境变量，可以将设置的值作为 `{{ Token }}` 传入进行多 Tokens 轮询。
+将你账号的 `AccessToken` 或 `RefreshToken` 作为 `{{Token}}` 传入。
 
-> - `AccessToken` 获取: chatgpt官网登录后，再打开 [https://chatgpt.com/api/auth/session](https://chatgpt.com/api/auth/session) 获取 `accessToken` 这个值。
-> - `RefreshToken` 获取: 此处不提供获取方法。
-> - 免登录 gpt-3.5 无需传入 Token。
+若有 Team 账号，可传入 `ChatGPT-Account-ID`：
+
+- 方式一：在请求头传 `ChatGPT-Account-ID`
+- 方式二：`Authorization: Bearer <AccessToken或RefreshToken>,<ChatGPT-Account-ID>`
+
+> - `AccessToken` 获取：登录 chatgpt 后访问 [https://chatgpt.com/api/auth/session](https://chatgpt.com/api/auth/session) 读取 `accessToken`
+> - `RefreshToken`：本仓库不提供获取方法
+> - 免登录 `GPT-3.5` 无需传 Token（可用性受网络环境影响）
+
+图片接口详细说明见 [docs/images-api.md](docs/images-api.md)。
+
 
 ## Tokens 管理
 
-1. 配置环境变量 `AUTHORIZATION` 作为 `授权码` ，然后运行程序。
-
-2. 访问 `/tokens` 或者 `/{api_prefix}/tokens` 可以查看现有 Tokens 数量，也可以上传新的 Tokens ，或者清空 Tokens。
-
-3. 请求时传入 `AUTHORIZATION` 中配置的 `授权码` 即可使用轮询的Tokens进行对话
+1. 建议配置 `ADMIN_API_KEY` 后再开放管理端接口。
+2. 访问 `/tokens`（或 `/{api_prefix}/tokens`）可查看和上传 Tokens。
+3. 管理端校验优先级：
+   - 若设置了 `ADMIN_API_KEY`，需提供匹配值（支持 `x-admin-key`、`admin_key`、表单 `admin_key` 或 Bearer）
+   - 若未设置 `ADMIN_API_KEY`，回退使用 `AUTHORIZATION` 列表校验
+   - 两者都未配置时，管理接口返回 `403`
 
 ![tokens.png](docs/tokens.png)
 
+
 ## 官网原生镜像
 
-1. 配置环境变量 `ENABLE_GATEWAY` 为 `true`，然后运行程序, 注意开启后别人也可以直接通过域名访问你的网关。
-
-2. 在 Tokens 管理页面上传 `RefreshToken` 或 `AccessToken`
-
-3. 访问 `/login` 到登录页面
+1. 设置 `ENABLE_GATEWAY=true` 并重启服务。
+2. 在 Tokens 管理页面上传 `RefreshToken` 或 `AccessToken`。
+3. 访问 `/login` 进入登录页。
 
 ![login.png](docs/login.png)
 
-4. 进入官网原生镜像页面使用
+4. 进入官网镜像页面使用。
 
 ![chatgpt.png](docs/chatgpt.png)
 
+
 ## 环境变量
 
-每个环境变量都有默认值，如果不懂环境变量的含义，请不要设置，更不要传空值，字符串无需引号。
+每个变量都有默认值。若不确定含义，建议保持默认。
 
-| 分类   | 变量名               | 示例值                                                         | 默认值                   | 描述                                                           |
-|------|-------------------|-------------------------------------------------------------|-----------------------|--------------------------------------------------------------|
-| 安全相关 | API_PREFIX        | `your_prefix`                                               | `None`                | API 前缀密码，不设置容易被人访问，设置后需请求 `/your_prefix/v1/chat/completions` |
-|      | AUTHORIZATION     | `your_first_authorization`,<br/>`your_second_authorization` | `[]`                  | 你自己为使用多账号轮询 Tokens 设置的授权码，英文逗号分隔                             |
-|      | AUTH_KEY          | `your_auth_key`                                             | `None`                | 私人网关需要加`auth_key`请求头才设置该项                                    |
-| 请求相关 | CHATGPT_BASE_URL  | `https://chatgpt.com`                                       | `https://chatgpt.com` | ChatGPT 网关地址，设置后会改变请求的网站，多个网关用逗号分隔                           |
-|      | PROXY_URL         | `http://ip:port`,<br/>`http://username:password@ip:port`    | `[]`                  | 全局代理 URL，出 403 时启用，多个代理用逗号分隔                                 |
-|      | EXPORT_PROXY_URL  | `http://ip:port`或<br/>`http://username:password@ip:port`    | `None`                | 出口代理 URL，防止请求图片和文件时泄漏源站 ip                                   |
-| 功能相关 | HISTORY_DISABLED  | `true`                                                      | `true`                | 是否不保存聊天记录并返回 conversation_id                                 |
-|      | POW_DIFFICULTY    | `00003a`                                                    | `00003a`              | 要解决的工作量证明难度，不懂别设置                                            |
-|      | RETRY_TIMES       | `3`                                                         | `3`                   | 出错重试次数，使用 `AUTHORIZATION` 会自动随机/轮询下一个账号                      |
-|      | CONVERSATION_ONLY | `false`                                                     | `false`               | 是否直接使用对话接口，如果你用的网关支持自动解决 `POW` 才启用                           |
-|      | ENABLE_LIMIT      | `true`                                                      | `true`                | 开启后不尝试突破官方次数限制，尽可能防止封号                                       |
-|      | UPLOAD_BY_URL     | `false`                                                     | `false`               | 开启后按照 `URL+空格+正文` 进行对话，自动解析 URL 内容并上传，多个 URL 用空格分隔           |
-|      | SCHEDULED_REFRESH | `false`                                                     | `false`               | 是否定时刷新 `AccessToken` ，开启后每次启动程序将会全部非强制刷新一次，每4天晚上3点全部强制刷新一次。  |
-|      | RANDOM_TOKEN      | `true`                                                      | `true`                | 是否随机选取后台 `Token` ，开启后随机后台账号，关闭后为顺序轮询                         |
-| 网关功能 | ENABLE_GATEWAY    | `false`                                                     | `false`               | 是否启用网关模式，开启后可以使用镜像站，但也将会不设防                                  |
-|      | AUTO_SEED          | `false`                                                     | `true`               | 是否启用随机账号模式，默认启用，输入`seed`后随机匹配后台`Token`。关闭之后需要手动对接接口，来进行`Token`管控。    |
+| 分类 | 变量名 | 示例值 | 默认值 | 描述 |
+|---|---|---|---|---|
+| 安全相关 | API_PREFIX | `your_prefix` | `None` | API 前缀，设置后请求路径需带前缀 |
+|  | AUTHORIZATION | `sk-a,sk-b` | `[]` | 自定义授权码列表（逗号分隔） |
+|  | ADMIN_API_KEY | `change-me` | `None` | Tokens 管理接口专用管理密钥（推荐设置） |
+|  | AUTH_KEY | `your_auth_key` | `None` | 网关模式可选鉴权 key |
+| 请求相关 | CHATGPT_BASE_URL | `https://chatgpt.com` | `https://chatgpt.com` | 上游地址，支持逗号分隔多地址 |
+|  | PROXY_URL | `http://ip:port` | `[]` | 全局代理，支持多个 |
+|  | EXPORT_PROXY_URL | `http://ip:port` | `None` | 出口代理（文件/图片下载场景） |
+| 功能相关 | HISTORY_DISABLED | `true` | `true` | 是否禁用历史记录 |
+|  | RETRY_TIMES | `3` | `3` | 失败重试次数 |
+|  | ENABLE_LIMIT | `true` | `true` | 是否启用官方限制保护 |
+|  | SCHEDULED_REFRESH | `false` | `false` | 定时刷新 AccessToken |
+|  | RANDOM_TOKEN | `true` | `true` | 是否随机选 token |
+| 网关相关 | ENABLE_GATEWAY | `false` | `false` | 是否启用官网镜像功能 |
+|  | AUTO_SEED | `true` | `true` | 是否启用随机 seed 模式 |
+|  | FORCE_NO_HISTORY | `false` | `false` | 网关模式下强制无历史 |
+|  | NO_SENTINEL | `false` | `false` | 关闭 sentinel 流程（仅排障时使用） |
+
+完整变量可参考 `utils/configs.py` 与 `.env.example`。
+
 
 ## 部署
-
-### Zeabur 部署
-
-[![Deploy on Zeabur](https://zeabur.com/button.svg)](https://zeabur.com/templates/6HEGIZ?referralCode=LanQian528)
 
 ### 直接部署
 
 ```bash
-git clone https://github.com/LanQian528/chat2api
-cd chat2api
+git clone https://github.com/onebu123/chatgpt2api
+cd chatgpt2api
 pip install -r requirements.txt
 python app.py
 ```
 
 ### Docker 部署
-
-您需要安装 Docker 和 Docker Compose。
 
 ```bash
 docker run -d \
@@ -167,48 +185,35 @@ docker run -d \
   lanqian528/chat2api:latest
 ```
 
-### (推荐，可用 PLUS 账号) Docker Compose 部署
-
-创建一个新的目录，例如 chat2api，并进入该目录：
+### Docker Compose（推荐）
 
 ```bash
 mkdir chat2api
 cd chat2api
-```
-
-在此目录中下载库中的 docker-compose.yml 文件：
-
-```bash
-wget https://raw.githubusercontent.com/LanQian528/chat2api/main/docker-compose-warp.yml
-```
-
-修改 docker-compose-warp.yml 文件中的环境变量，保存后：
-
-```bash
+wget https://raw.githubusercontent.com/onebu123/chatgpt2api/main/docker-compose-warp.yml
 docker-compose up -d
 ```
 
 
 ## 常见问题
 
-> - 错误代码：
->   - `401`：当前 IP 不支持免登录，请尝试更换 IP 地址，或者在环境变量 `PROXY_URL` 中设置代理，或者你的身份验证失败。
->   - `403`：请在日志中查看具体报错信息。
->   - `429`：当前 IP 请求1小时内请求超过限制，请稍后再试，或更换 IP。
->   - `500`：服务器内部错误，请求失败。
->   - `502`：服务器网关错误，或网络不可用，请尝试更换网络环境。
+> - 错误码说明：
+>   - `401`：鉴权失败或 Token 无效
+>   - `403`：权限不足（例如管理接口密钥不匹配）
+>   - `429`：请求频率受限
+>   - `500`：服务内部异常
+>   - `502`：上游不可用或能力未开通
 
-> - 已知情况：
->   - 日本 IP 很多不支持免登，免登 GPT-3.5 建议使用美国 IP。
->   - 99%的账号都支持免费 `GPT-4o` ，但根据 IP 地区开启，目前日本和新加坡 IP 已知开启概率较大。
+> - 为什么 `/v1/images/generations` 返回 502？
+>   - 常见原因是上游账号/会话没有图片工具权限，而非接口格式错误。
+
+> - 为什么客户端模型列表和实际可用模型不一致？
+>   - `/v1/models` 已优先实时拉取上游；若上游失败会回退静态列表，属于保护性降级。
 
 > - 环境变量 `AUTHORIZATION` 是什么？
->   - 是一个自己给 chat2api 设置的一个身份验证，设置后才可使用已保存的 Tokens 轮询，请求时当作 `APIKEY` 传入。
-> - AccessToken 如何获取？
->   - chatgpt官网登录后，再打开 [https://chatgpt.com/api/auth/session](https://chatgpt.com/api/auth/session) 获取 `accessToken` 这个值。
+>   - 是你给本服务设置的访问密钥（可多值），用于调用轮询 token 能力。
 
 
 ## License
 
 MIT License
-
