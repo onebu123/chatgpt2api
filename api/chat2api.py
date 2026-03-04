@@ -2,6 +2,7 @@ import asyncio
 import hashlib
 import json
 import random
+import re
 import time
 import types
 
@@ -73,6 +74,74 @@ async def process(request_data, req_token):
     await chat_service.prepare_send_conversation()
     res = await chat_service.send_conversation()
     return chat_service, res
+
+
+def _extract_image_urls(content: str):
+    if not isinstance(content, str) or not content.strip():
+        return []
+
+    urls = []
+    for match in re.findall(r"!\[[^\]]*]\((https?://[^)\s]+)\)", content):
+        if match and match not in urls:
+            urls.append(match)
+
+    if not urls:
+        for match in re.findall(r"(https?://[^\s)]+)", content):
+            if match and match not in urls:
+                urls.append(match)
+    return urls
+
+
+async def _collect_stream_text(stream_response):
+    collected_text = ""
+    async for chunk in stream_response:
+        try:
+            if isinstance(chunk, bytes):
+                chunk = chunk.decode("utf-8", errors="ignore")
+            if not isinstance(chunk, str) or not chunk.startswith("data: "):
+                continue
+            payload = chunk[6:].strip()
+            if payload == "[DONE]":
+                break
+            data = json.loads(payload)
+            delta = (((data.get("choices") or [{}])[0].get("delta") or {}).get("content") or "")
+            collected_text += delta
+        except Exception:
+            continue
+    return collected_text
+
+
+async def _generate_one_image_url(req_token: str, model: str, prompt: str):
+    draw_prompt = (
+        "Generate one image from the following prompt. "
+        "Return markdown image only in format ![image](URL), no extra text.\n\n"
+        f"Prompt: {prompt}"
+    )
+    request_data = {
+        "model": model,
+        "stream": False,
+        "messages": [
+            {
+                "role": "user",
+                "content": draw_prompt,
+            }
+        ],
+    }
+    chat_service, res = await async_retry(process, request_data, req_token)
+    try:
+        if isinstance(res, types.AsyncGeneratorType):
+            content = await _collect_stream_text(res)
+        else:
+            content = (((res.get("choices") or [{}])[0].get("message") or {}).get("content") or "")
+        image_urls = _extract_image_urls(content)
+        if not image_urls:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Image generation failed. No image URL returned. Response preview: {content[:200]}",
+            )
+        return image_urls[0]
+    finally:
+        await chat_service.close_client()
 
 
 def _extract_bearer_token(request: Request):
@@ -262,6 +331,44 @@ async def send_conversation(request: Request, credentials: HTTPAuthorizationCred
         await chat_service.close_client()
         logger.error(f"Server error, {str(e)}")
         raise HTTPException(status_code=500, detail="Server error")
+
+
+@app.post(f"/{api_prefix}/v1/images/generations" if api_prefix else "/v1/images/generations")
+async def generate_images(request: Request, credentials: HTTPAuthorizationCredentials = Security(security_scheme)):
+    req_token = credentials.credentials
+    if not req_token:
+        raise HTTPException(status_code=401, detail="Authorization header is missing")
+
+    try:
+        request_data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail={"error": "Invalid JSON body"})
+
+    prompt = (request_data.get("prompt") or "").strip()
+    if not prompt:
+        raise HTTPException(status_code=400, detail="`prompt` is required")
+
+    model = (request_data.get("model") or "gpt-5-3").strip()
+    if not model:
+        model = "gpt-5-3"
+
+    try:
+        n = int(request_data.get("n", 1))
+    except Exception:
+        raise HTTPException(status_code=400, detail="`n` must be an integer")
+    if n < 1 or n > 4:
+        raise HTTPException(status_code=400, detail="`n` must be between 1 and 4")
+
+    response_format = (request_data.get("response_format") or "url").strip().lower()
+    if response_format not in {"url"}:
+        raise HTTPException(status_code=400, detail="Only `response_format=url` is currently supported")
+
+    image_data = []
+    for _ in range(n):
+        image_url = await _generate_one_image_url(req_token, model, prompt)
+        image_data.append({"url": image_url, "revised_prompt": prompt})
+
+    return {"created": int(time.time()), "data": image_data}
 
 
 @app.get(f"/{api_prefix}/v1/models" if api_prefix else "/v1/models")
